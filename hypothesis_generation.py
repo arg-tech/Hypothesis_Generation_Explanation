@@ -1014,6 +1014,66 @@ def write_json_to_file(jsn, path):
     
     with open(path, 'w') as fp:
         json.dump(jsn, fp)
+        
+def get_exps(json_data):
+    cent = Centrality()
+    
+    graph = cent.get_graph_string(json_data)
+    
+
+    ras = cent.get_ras(graph)
+    ras_i_list = cent.extract_rule_structure(graph, ras)
+    
+    return ras_i_list
+    
+def produce_explanation_from_structure(hyp_explain):
+
+    f = open('structure_explanation.txt', 'a')
+
+
+    for hyp in hyp_explain:
+        hyp_id = hyp[0]
+        hyp_text = hyp[1]
+        hyp_prem = hyp[2]
+        print('', file=f)
+        if len(hyp_prem) > 0:
+            for prem in hyp_prem:
+                print(hyp_text + ' was automatically generated because ' + prem[1], file=f)
+                
+    f.close()
+                
+def produce_explanation_from_rules(all_hyps):
+    f = open('rules_explanation.txt', 'a')
+    
+    for hyp in all_hyps:
+        text = hyp[0]
+        rule_id = hyp[1]
+        premise = hyp[2]
+        rule_premise = hyp[3]
+        sim = hyp[4]
+        rule_type = hyp[5]
+        scheme = hyp[7]
+        
+        if rule_type == 'SIM RULE':
+            print(text + ' was generated automatically BECAUSE there was a textual similarity match with rule ' + str(rule_id), file=f)
+            print('The Similarity was ' + str(sim) + ' between ' + premise + ' and ' + rule_premise , file=f)
+        elif rule_type == 'EVENT RULE':
+            print(text + ' was generated automatically BECAUSE there was an event similarity match with rule ' + str(rule_id), file=f)
+            print('The Similarity was ' + str(sim) + ' between ' + premise + ' and ' + rule_premise , file=f)
+        elif rule_type == 'SCHEME RULE':
+            print(text + ' was generated automatically BECAUSE there was an argument scheme similarity match', file=f)
+            print('The scheme was identified through argument from ' + str(scheme) + ' and premise: ' + premise, file=f )
+        
+        print('', file=f)
+    f.close()
+        
+def explain_alt_hyps(alt_hyps):
+    f = open('alternative_hyps_explanation.txt', 'a')
+    for alt_hyp in alt_hyps:
+        
+        print(str(alt_hyp[0]) + ' was generated because it is the alternative hypothesis to ' +  str(alt_hyp[2]), file=f)
+        print('', file=f)
+    f.close()
 
 if __name__ == "__main__":
     json_path = str(sys.argv[1])
@@ -1031,9 +1091,10 @@ if __name__ == "__main__":
     
     cent = Centrality()
     i_nodes = cent.get_i_node_list(graph)
-    hevy_jsn = get_hevy_json('20088_targe', '')
+    hevy_jsn = get_hevy_json('20088_target', '')
     rule_hypos = get_hyps_from_rules(hevy_jsn, i_nodes, rules, 0.17, nlp)
     rule_hypo_list = remove_duplicate_hypos(rule_hypos)
+    
     
     scheme_list, overall_rule_list = combine_hypothesis_lists(scheme_hypos, rule_hypo_list)
     
@@ -1071,7 +1132,17 @@ if __name__ == "__main__":
     alt_jsn_copy['edges'] = edges_cp
     
     
+    hyp_explan = get_exps(alt_jsn_copy)
+    hyp_explain = [hyp  for hyp in hyp_explan if 'H' in str(hyp[0])]
     
     
-    print_hypoths(hypoths_list, alternative_hypotheses)
+    produce_explanation_from_structure(hyp_explain)
+    
+    produce_explanation_from_rules(all_hypotheses)
+    
+    explain_alt_hyps(alternative_hypotheses)
+    #print_hypoths(hypoths_list, alternative_hypotheses)
+    
+    print('Explanations in text files structure_explanation.txt, rules_explanation.txt, alternative_hyps_explanation.txt')
+    
     write_json_to_file(alt_jsn_copy, 'generated_hyps.json')
