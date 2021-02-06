@@ -237,7 +237,8 @@ def get_rules_data(rules_path, hevy_rules_path):
     return rules, full_scheme_data
     
 def get_entity_from_text(nlp, text):
-    text = text.lower()
+    if text.isupper():
+        text = text.lower()
     doc = nlp(text)
     person_list=[]
     org_list = []
@@ -250,7 +251,7 @@ def get_entity_from_text(nlp, text):
         if ent.label_ == 'GPE':
             place_list.append(ent.text)
     for token in doc:
-        if token.pos_ == 'PROPN' and not any(token.text in s for s in person_list) and not any(token.text in s for s in org_list) and any(token.text in s for s in place_list):
+        if token.pos_ == 'PROPN' and token.text not in person_list and token.text not in org_list and token.text not in place_list:
             person_list.append(token.text)
     return person_list, org_list
     
@@ -302,6 +303,7 @@ def get_argument_scheme_hypotheses(nlp, threshold, full_scheme_data, target_sche
             stripped = node_text.lower().split(sep, 1)[1]
             agent_list, org_list = get_entity_from_text(nlp, stripped)
         else:
+            stripped = node_text
             agent_list, org_list = get_entity_from_text(nlp, stripped)
 
         
@@ -530,7 +532,10 @@ def create_rule_hypothesis(score_store, rule_id, rule_hyp, prem_id, nlp):
             agent = ev_premise['involvedAgent']
             if not isinstance(agent, str):
                 agent = agent[0]
+            if agent == '':
+                agent_list, org_list = get_entity_from_text(nlp, matched_premise)
         else:
+                    
                     
             agent_list, org_list = get_entity_from_text(nlp, matched_premise)
         if 'Person X' in rule_hyp and len(agent_list) > 0:
@@ -1077,24 +1082,31 @@ def explain_alt_hyps(alt_hyps):
 
 if __name__ == "__main__":
     json_path = str(sys.argv[1])
+    hevy_file_name = str(sys.argv[2])
+    context = str(sys.argv[3])
     graph, jsn = get_graph_json(json_path)
     target_schemes = get_arg_schemes_props(graph, jsn)
+    rules_path = ''
+    hevy_rules_path = ''
     
-    
-    rules_path = 'rules/'
-    hevy_rules_path = 'rules/hevy/'
+    if context == '':
+        rules_path = 'rules/'
+        hevy_rules_path = 'rules/hevy/'
+    else:
+        rules_path = 'rules/' + context + '/'
+        hevy_rules_path = 'rules/hevy/' + conext + '/'
     
     rules, full_scheme_data = get_rules_data(rules_path, hevy_rules_path)
     nlp = spacy.load("en_core_web_sm")
 
+    #0.33
     scheme_hypos = get_argument_scheme_hypotheses(nlp, 0.33, full_scheme_data, target_schemes)
     
     cent = Centrality()
     i_nodes = cent.get_i_node_list(graph)
-    hevy_jsn = get_hevy_json('20088_target', '')
-    rule_hypos = get_hyps_from_rules(hevy_jsn, i_nodes, rules, 0.17, nlp)
+    hevy_jsn = get_hevy_json(hevy_file_name, '')
+    rule_hypos = get_hyps_from_rules(hevy_jsn, i_nodes, rules, 0.15, nlp)
     rule_hypo_list = remove_duplicate_hypos(rule_hypos)
-    
     
     scheme_list, overall_rule_list = combine_hypothesis_lists(scheme_hypos, rule_hypo_list)
     
@@ -1134,6 +1146,7 @@ if __name__ == "__main__":
     
     hyp_explan = get_exps(alt_jsn_copy)
     hyp_explain = [hyp  for hyp in hyp_explan if 'H' in str(hyp[0])]
+    
     
     
     produce_explanation_from_structure(hyp_explain)
